@@ -1,12 +1,9 @@
-//#include "RKImage.h"
-//#include "RKLog.h"
-//#include "RKComm.h"
-#include "RKAndroidDevice.h"
-#include <uuid/uuid.h>
-
+#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <fcntl.h>
+#include <uuid/uuid.h>
+
+#include "RKAndroidDevice.h"
 
 #define OTP_NODE_PATH  "/sys/bus/nvmem/devices/rockchip-otp0/nvmem"
 
@@ -866,7 +863,9 @@ bool do_rk_firmware_upgrade(char *szFw,void *pCallback,void *pProgressCallback,c
 
 				long offset = rk3308bs_loaderOffset + pImage->GetFWOffset();
 				fseeko64(pImage->GetFWFileHandle(),offset,SEEK_SET);
-				fread(lpBoot,1,rk3308bs_loaderSize,pImage->GetFWFileHandle());
+				size_t ret = fread(lpBoot,1,rk3308bs_loaderSize,pImage->GetFWFileHandle());
+				if (ret != rk3308bs_loaderSize)
+					printf("%s : read error\n", __func__);
 				pImage->m_bootObject = new CRKBoot(lpBoot,rk3308bs_loaderSize, bRet);
 				if (!bRet)
 				{
@@ -878,9 +877,10 @@ bool do_rk_firmware_upgrade(char *szFw,void *pCallback,void *pProgressCallback,c
 		}
 	}
 
+#ifndef USE_SIGNATURE_FW
 	if (bUpdateLoader)
 	{
-		printf("############### update boatloader start ############\n");
+		printf("############### update bootloader start ############\n");
 
 		pLog->Record("IDBlock Preparing...");
 		printf("\t\t ############### IDBlock Preparing...\n");
@@ -898,7 +898,7 @@ bool do_rk_firmware_upgrade(char *szFw,void *pCallback,void *pProgressCallback,c
 			pLog->Record("ERROR:do_rk_firmware_upgrade-->DownloadIDBlock failed!");
 			goto EXIT_UPGRADE;
 		}
-		printf("############### update boatloader Suceess############\n");
+		printf("############### update bootloader Success############\n");
 
 		if (strFw.find(_T(".bin"))!=tstring::npos)
 		{
@@ -915,7 +915,47 @@ bool do_rk_firmware_upgrade(char *szFw,void *pCallback,void *pProgressCallback,c
 		goto EXIT_UPGRADE;
 	}
 
+#else
+	printf("use signature firmware to update.\n");
+	iRet = pDevice->DownloadImage();
+	if (iRet!=ERR_SUCCESS)
+	{
+		pLog->Record("ERROR:do_rk_firmware_upgrade-->DownloadImage failed!");
+		goto EXIT_UPGRADE;
+	}
+
+	if (bUpdateLoader)
+	{
+		printf("############### update bootloader start ############\n");
+		pLog->Record("IDBlock Preparing...");
+		printf("\t\t ############### IDBlock Preparing...\n");
+		iRet = pDevice->PrepareIDB();
+		if (iRet!=ERR_SUCCESS)
+		{
+			pLog->Record("ERROR:do_rk_firmware_upgrade-->PrepareIDB failed!");
+			goto EXIT_UPGRADE;
+		}
+		pLog->Record("IDBlock Writing...");
+		printf("\t\t ############### IDBlock Writing...\n");
+		iRet = pDevice->DownloadIDBlock();
+		if (iRet!=ERR_SUCCESS)
+		{
+			pLog->Record("ERROR:do_rk_firmware_upgrade-->DownloadIDBlock failed!");
+			goto EXIT_UPGRADE;
+		}
+		printf("############### update bootloader Success############\n");
+
+		if (strFw.find(_T(".bin"))!=tstring::npos)
+		{
+			pLog->Record("INFO:do_rk_firmware_upgrade-->Download loader only success!");
+			bSuccess = true;
+			return bSuccess;
+		}
+	}
+#endif
+
 	bSuccess = true;
+
 EXIT_UPGRADE:
 	if (bSuccess)
 	{

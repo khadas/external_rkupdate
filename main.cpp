@@ -26,10 +26,12 @@ void handle_upgrade_progress_callback(float portion, float seconds)
     }
 }
 
-int main(int argc, char *argv[]){
+int main(int argc, char *argv[]) {
+    int status;
+
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
-    if(argc != 5){
+    if(argc != 5) {
         printf("unexpected number of arguments (%d)\n", argc);
         fprintf(stderr, "unexpected number of arguments (%d)\n", argc);
         return 1;
@@ -42,8 +44,9 @@ int main(int argc, char *argv[]){
     sdBootUpdate = atoi(argv[4]);
 
     //call update
-    bool bRet = do_rk_firmware_upgrade(filepath, (void *)handle_upgrade_callback, (void *)handle_upgrade_progress_callback);
-    int status;
+    bool bRet = do_rk_firmware_upgrade(filepath, (void *)handle_upgrade_callback,
+                                        (void *)handle_upgrade_progress_callback);
+
     if(!bRet)
         status = INSTALL_ERROR;
     else
@@ -52,9 +55,4 @@ int main(int argc, char *argv[]){
     sleep(5);
     sync();
     return status;
-
-#if 0
-    do_rk_firmware_upgrade(argv[1], NULL, NULL);
-    return 1;
-#endif
 }

@@ -103,7 +103,9 @@ bool CRKImage::SaveBootFile(tstring filename)
 	do
 	{
 		dwReadSize = (dwBootSize>=1024)?dwBufferSize:dwBootSize;
-		fread(buffer,1,dwReadSize,m_pFile);
+		size_t ret = fread(buffer,1,dwReadSize,m_pFile);
+		if (ret != dwReadSize)
+			printf("fread error: read:%d, req read:%d", ret, dwReadSize);
 		fwrite(buffer,1,dwReadSize,file);
 		dwBootSize -= dwReadSize;
 	} while (dwBootSize>0);
@@ -126,7 +128,10 @@ bool CRKImage::SaveFWFile(tstring filename)
 	do
 	{
 		dwReadSize = (dwFWSize>=1024)? dwBufferSize:dwFWSize;
-		fread(buffer,1,dwReadSize,m_pFile);
+		size_t ret = fread(buffer,1,dwReadSize,m_pFile);
+		if (ret != dwReadSize)
+			printf("fread error: read:%d, req read:%d", ret, dwReadSize);
+
 		fwrite(buffer,1,dwReadSize,file);
 		dwFWSize -= dwReadSize;
 	} while (dwFWSize>0);
@@ -148,7 +153,7 @@ bool CRKImage::GetData(long long dwOffset,DWORD dwSize,PBYTE lpBuffer)
 	fseeko64(m_pFile,dwOffset,SEEK_SET);
 	UINT uiActualRead;
 	uiActualRead = fread(lpBuffer,1,dwSize,m_pFile);
-	if (dwSize!=uiActualRead)
+	if (dwSize != uiActualRead)
 	{
 		return false;
 	}
@@ -226,7 +231,7 @@ CRKImage::CRKImage(tstring filename,bool &bCheck)
 		bCheck = false;
 		printf("CRKImage : fopen <%s> fail,will try use fopen64 \n", szName);
 
-		m_pFile=  fopen64(szName, "rb");
+		m_pFile = fopen64(szName, "rb");
 		if (!m_pFile)
 		{
 			bCheck = false;
@@ -251,7 +256,9 @@ CRKImage::CRKImage(tstring filename,bool &bCheck)
 	if (!bOnlyBootFile)
 	{
 		fseeko64(m_pFile,0,SEEK_SET);
-		fread((PBYTE)(&imageHead),1,sizeof(STRUCT_RKIMAGE_HEAD),m_pFile);
+		size_t ret = fread((PBYTE)(&imageHead), 1, sizeof(STRUCT_RKIMAGE_HEAD), m_pFile);
+		if (ret != sizeof(STRUCT_RKIMAGE_HEAD))
+			return;
 
 		if ( imageHead.uiTag!=0x57464B52 )
 		{
@@ -274,13 +281,19 @@ CRKImage::CRKImage(tstring filename,bool &bCheck)
 			m_bSignFlag = true;
 			m_signMd5Size = nMd5DataSize-32;
 			fseeko64(m_pFile,ulFwSize,SEEK_SET);
-			fread(m_md5,1,32,m_pFile);
-			fread(m_signMd5,1,nMd5DataSize-32,m_pFile);
+			size_t ret = fread(m_md5,1,32,m_pFile);
+			if (ret != 32)
+				printf("%s:read error\n", __func__);
+			ret = fread(m_signMd5,1,nMd5DataSize-32,m_pFile);
+			if (ret != nMd5DataSize-32)
+				printf("%s :ret = %d\n", __func__, ret);
 		}
 		else
 		{
 			fseeko64(m_pFile,-32,SEEK_END);
-			fread(m_md5,1,32,m_pFile);
+			size_t read = fread(m_md5,1,32,m_pFile);
+			if (read != 32)
+				printf("%s: read error\n", __func__);
 		}
 		if (bDoMdb5Check)
 		{
@@ -318,7 +331,9 @@ CRKImage::CRKImage(tstring filename,bool &bCheck)
 	PBYTE lpBoot;
 	lpBoot = new BYTE[m_bootSize];
 	fseeko64(m_pFile,m_bootOffset,SEEK_SET);
-	fread(lpBoot,1,m_bootSize,m_pFile);
+	size_t ret = fread(lpBoot,1,m_bootSize,m_pFile);
+	if (ret != m_bootSize)
+		printf("%s : read error\n", __func__);
 	bool bRet;
 	m_bootObject = new CRKBoot(lpBoot,m_bootSize,bRet);
 	if (!bRet)

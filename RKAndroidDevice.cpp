@@ -7,6 +7,25 @@
 /*factor is 0xedb88320*/
 bool CRKAndroidDevice::bGptFlag = 0;
 extern int sdBootUpdate;
+
+	char name[PART_NAME];// 分区名称
+	char file[RELATIVE_PATH];// 相对路径名，提取文件时用到
+	unsigned int part_size;//分区占用扇区数
+	unsigned int offset;// 文件在Image中的偏移
+	unsigned int flash_offset;// 烧写到Flash中的位置(以sector为单位)
+	unsigned int usespace;// 文件占用空间（按PAGE对齐)
+	unsigned int size;// 字节数，实际文件大小
+
+#ifdef USE_SIGNATURE_FW
+RK_UPDATE_ORDER gstUpdateOrder[] =
+{
+	{1, "rootfs",     {"","",0,0,0,0,0}, 0},
+	{2, "boot",       {"","",0,0,0,0,0}, 0},
+	{3, "uboot",      {"","",0,0,0,0,0}, 0},
+	{4, "bootloader", {"","",0,0,0,0,0}, 0},
+};
+#endif
+
 unsigned int crc32table_le[] = {
 	tole(0x00000000L), tole(0x77073096L), tole(0xee0e612cL), tole(0x990951baL),
 	tole(0x076dc419L), tole(0x706af48fL), tole(0xe963a535L), tole(0x9e6495a3L),
@@ -1105,7 +1124,7 @@ bool CRKAndroidDevice::IsExistBootloaderInFw()
 	bool bRet;
 	long long dwFwOffset;
 	bool  bExistLoader = false;
-	FILE *pfPackageFile;
+	FILE *pfPackageFile = NULL;
 	STRUCT_RKIMAGE_HDR rkImageHead;
 	PBYTE pBuffer = NULL;
 	int iHeadSize;
@@ -1232,18 +1251,41 @@ END:
 	return bExistLoader;
 }
 
+static bool isInOrderList(char *partName)
+{
+	bool bExist = false;
+	int i = 0;
+#ifdef USE_SIGNATURE_FW
+	for (; i < ARRAY_LENGTH(gstUpdateOrder); i++)
+	{
+		if (!strcmp(partName, gstUpdateOrder[i].partName))
+		{
+			bExist = true;
+			break;
+		}
+	}
+#endif
+	return bExist;
+}
+
 int CRKAndroidDevice::DownloadImage()
 {
 	long long dwFwOffset;
 	bool  bRet;
 	dwFwOffset = m_pImage->FWOffset;
 	STRUCT_RKIMAGE_HDR rkImageHead;
+	int i;
 	int iHeadSize;
-	iHeadSize = sizeof(STRUCT_RKIMAGE_HDR);
 	char szPrompt[100];
+	int iParamPos = -1;
+	bool bFoundParam = false;
+	long long uiTotalSize=0;
+	long long ulItemSize;
+
+	iHeadSize = sizeof(STRUCT_RKIMAGE_HDR);
 	if (m_pProcessCallback)
 		m_pProcessCallback(0.1,5);
-	bRet = m_pImage->GetData(dwFwOffset,iHeadSize,(PBYTE)&rkImageHead);
+	bRet = m_pImage->GetData(dwFwOffset, iHeadSize, (PBYTE)&rkImageHead);
 	if ( !bRet )
 	{
 		if (m_pLog)
@@ -1262,37 +1304,25 @@ int CRKAndroidDevice::DownloadImage()
 	}
 
 	m_dwBackupOffset = 0xFFFFFFFF;
-	int i;
-	bool bFoundParam=false,bFoundSystem=false,bFoundUserData=false;
-	int iParamPos=-1;
-	long long uiTotalSize=0;
-	long long ulItemSize;
-	for ( i = 0; i < rkImageHead.item_count; i++ )
+	for (i = 0; i < rkImageHead.item_count; i++)
 	{
-		if ( rkImageHead.item[i].flash_offset!=0xFFFFFFFF )
+		if (rkImageHead.item[i].flash_offset != 0xFFFFFFFF)
 		{
-			if (strcmp(rkImageHead.item[i].name,PARTNAME_PARAMETER)==0)
+			if (strcmp(rkImageHead.item[i].name, PARTNAME_PARAMETER)==0)
 			{
 				bFoundParam = true;
 				iParamPos = i;
 			}
 			else
 			{
-				if (strcmp(rkImageHead.item[i].name,PARTNAME_SYSTEM)==0)
-				{
-					bFoundSystem = true;
-				}
-				if (look_for_userdata(rkImageHead.item[i].name)==0)
-				{
-					bFoundUserData = true;
-				}
 				if (strcmp(rkImageHead.item[i].name,PARTNAME_BACKUP)==0)
 				{
 					m_dwBackupOffset = rkImageHead.item[i].flash_offset;
 				}
 
-				if (strcmp(rkImageHead.item[i].name, PARTNAME_RECOVERY) == 0
-					|| strcmp(rkImageHead.item[i].name, PARTNAME_MISC) == 0)
+				if (strcmp(rkImageHead.item[i].name, PARTNAME_RECOVERY) == 0||
+					strcmp(rkImageHead.item[i].name, PARTNAME_MISC) == 0 ||
+					look_for_userdata(rkImageHead.item[i].name) == 0)
 				{
 					if (!sdBootUpdate)
 						//if find "recovery" or "misc" partition, we ignore,
@@ -1309,6 +1339,18 @@ int CRKAndroidDevice::DownloadImage()
 				}
 				else
 					ulItemSize = rkImageHead.item[i].size;
+
+				#ifdef USE_SIGNATURE_FW
+				for (int idx = 0; idx < ARRAY_LENGTH(gstUpdateOrder); idx++)
+				{
+					if (!strcmp(rkImageHead.item[i].name, gstUpdateOrder[idx].partName))
+					{
+						gstUpdateOrder[idx].stItem = rkImageHead.item[i];
+						gstUpdateOrder[idx].ulItemSize = ulItemSize;
+					}
+				}
+				#endif
+
 				uiTotalSize += ulItemSize;
 			}
 		}
@@ -1331,6 +1373,7 @@ int CRKAndroidDevice::DownloadImage()
 		}
 		return -12;
 	}
+
 	GptFlag = GetParameterGptFlag(rkImageHead.item[iParamPos]);
 	bGptFlag = GptFlag;
     printf(">>>>>>>> bGptFlag = %d, lineno = %d\n", bGptFlag,__LINE__);
@@ -1352,16 +1395,23 @@ int CRKAndroidDevice::DownloadImage()
 	m_uiLBATimes = 1;
 	if (m_pProcessCallback)
 		m_pProcessCallback(0.4,60);
+
+	/*
+	 * **************************************************************
+	 *
+	 * upgrade partiton fw data
+	 *
+	 * **************************************************************
+	*/
 	long long uiCurrentByte=0;
-	for ( i=0;i<rkImageHead.item_count;i++ )
+	for (i = 0; i < rkImageHead.item_count; i++)
 	{
 		if (m_pProcessCallback)
 			m_pProcessCallback((double)uiCurrentByte/(double)uiTotalSize,0);
-		if ( rkImageHead.item[i].flash_offset==0xFFFFFFFF )
-		{
+		if (rkImageHead.item[i].flash_offset == 0xFFFFFFFF)
 			continue;
-		}
-		if (i==iParamPos)
+
+		if (i == iParamPos)
 		{
 			if (m_pCallback)
 			{
@@ -1406,14 +1456,21 @@ int CRKAndroidDevice::DownloadImage()
 				look_for_userdata(rkImageHead.item[i].name) == 0)
 			{
 				if (!sdBootUpdate) {
-					//not sdboot update image, we will ignore download partiton.
+					//if not sd boot update image, we will ignore download partiton.
 					//chad.ma add for ignore 'recovery' or 'misc' or 'userdata' partition update at here.
-					m_pLog->Record(_T(" INFO:##  Ignore [ %s ] download  ##\n"), rkImageHead.item[i].name);
+					m_pLog->Record(_T("INFO:##  Ignore [ %s ] download  ##"), rkImageHead.item[i].name);
 					continue;
 				}
 			}
 
-			m_pLog->Record(_T(" INFO:###### Download %s ... #######"),rkImageHead.item[i].name);
+			#ifdef USE_SIGNATURE_FW
+			if (isInOrderList(rkImageHead.item[i].name))
+			{
+				continue;
+			}
+			#endif
+
+			m_pLog->Record(_T("INFO:###### Downloading %s #######"), rkImageHead.item[i].name);
 
 			if (rkImageHead.item[i].file[55]=='H')
 			{
@@ -1424,25 +1481,61 @@ int CRKAndroidDevice::DownloadImage()
 			else
 				ulItemSize = rkImageHead.item[i].size;
 
-			if (ulItemSize>0)
+			if (ulItemSize > 0)
 			{
 				if (m_pCallback)
 				{
 					sprintf(szPrompt,"%s writing...\n",rkImageHead.item[i].name);
 					m_pCallback(szPrompt);
 				}
-				bRet = RKA_File_Download(rkImageHead.item[i],uiCurrentByte,uiTotalSize);
-				if ( !bRet )
+				bRet = RKA_File_Download(rkImageHead.item[i], uiCurrentByte, uiTotalSize);
+				if (!bRet)
 				{
 					if (m_pLog)
 					{
-						m_pLog->Record(_T("ERROR:DownloadImage-->RKA_File_Download failed(%s)"),rkImageHead.item[i].name);
+						m_pLog->Record(_T("ERROR:DownloadImage-->RKA_File_Download failed(%s)"),
+										rkImageHead.item[i].name);
 					}
 					return -5;
 				}
+				m_pLog->Record(_T("INFO:###### Download %s Done #######"), rkImageHead.item[i].name);
 			}
 		}
 	}
+
+	#ifdef USE_SIGNATURE_FW
+	for(int idx = 0; idx < ARRAY_LENGTH(gstUpdateOrder);idx++)
+	{
+		if (gstUpdateOrder[idx].ulItemSize > 0)
+		{
+			m_pLog->Record(_T("INFO:###### Downloading %s #######"), rkImageHead.item[i].name);
+			if (m_pCallback)
+			{
+				sprintf(szPrompt,"%s writing...\n",gstUpdateOrder[idx].partName);
+				m_pCallback(szPrompt);
+			}
+			bRet = RKA_File_Download(gstUpdateOrder[idx].stItem, uiCurrentByte, uiTotalSize);
+			if (!bRet)
+			{
+				if (m_pLog)
+				{
+					m_pLog->Record(_T("ERROR:DownloadImage-->RKA_File_Download failed(%s)"),
+									gstUpdateOrder[idx].partName);
+				}
+				return -5;
+			}
+			m_pLog->Record(_T("INFO:###### Download %s Done #######"), gstUpdateOrder[idx].partName);
+		}
+	}
+	#endif
+
+	/*
+	 * **************************************************************
+	 *
+	 * Check partiton fw data
+	 *
+	 * **************************************************************
+	*/
 	m_pComm->RKU_ReopenLBAHandle();
 	if (m_pProcessCallback)
 		m_pProcessCallback(1,0);
@@ -1498,7 +1591,7 @@ int CRKAndroidDevice::DownloadImage()
 				if (!sdBootUpdate) {
 					//not sdboot update image , we will ignore check partiton.
 					//chad.ma add for ignore 'recovery' or 'misc' or 'userdata' partition check at here.
-					m_pLog->Record(_T(" INFO:#  Ignore [ %s ] Check  #\n"), rkImageHead.item[i].name);
+					m_pLog->Record(_T("INFO:# Ignore [ %s ] Check #"), rkImageHead.item[i].name);
 					continue;
 				}
 			}
@@ -1532,8 +1625,10 @@ int CRKAndroidDevice::DownloadImage()
 	}
 	if (m_pProcessCallback)
 		m_pProcessCallback(1,0);
+
 	return 0;
 }
+
 bool CRKAndroidDevice::write_partition_upgrade_flag(DWORD dwOffset,BYTE *pMd5,UINT uiFlag)
 {
 	BYTE flagSector[SECTOR_SIZE];
@@ -1581,9 +1676,9 @@ bool CRKAndroidDevice::read_partition_upgrade_flag(DWORD dwOffset,BYTE *pMd5,UIN
 int CRKAndroidDevice::UpgradePartition()
 {
 	long long dwFwOffset;
-	bool  bRet,bSameFw=false;
+	bool bRet, bSameFw = false;
 	BYTE localMd5[32];
-	BYTE *fwMd5,*fwSignMd5;
+	BYTE *fwMd5, *fwSignMd5;
 	UINT uiFlag;
 	DWORD dwFlagSector=0;
 	dwFwOffset = m_pImage->FWOffset;
@@ -1591,11 +1686,11 @@ int CRKAndroidDevice::UpgradePartition()
 	vector<int> vecUpgradePartition;
 	vecUpgradePartition.clear();
 	char szPrompt[100];
-	int iHeadSize;
-	iHeadSize = sizeof(STRUCT_RKIMAGE_HDR);
+	int iHeadSize = 0;
 	if (m_pProcessCallback)
 		m_pProcessCallback(0.1,5);
 
+	iHeadSize = sizeof(STRUCT_RKIMAGE_HDR);
 	bRet = m_pImage->GetData(dwFwOffset,iHeadSize,(PBYTE)&rkImageHead);
 	if ( !bRet )
 	{
@@ -1609,46 +1704,48 @@ int CRKAndroidDevice::UpgradePartition()
 	{
 		if (m_pLog)
 		{
-			m_pLog->Record(_T("ERROR:UpgradePartition-->No Found item"));
+			m_pLog->Record(_T("ERROR:UpgradePartition-->No Found partition item"));
 		}
 		return -2;
 	}
 
-	m_dwBackupOffset = 0xFFFFFFFF;
 	int i;
 	vector<int>::iterator iter;
-	bool bFoundParam=false,bFoundSystem=false,bFoundUserData=false;
-	int iParamPos=-1;
-	long long uiTotalSize=0;
-	long long ulItemSize;
-	for ( i=0;i<rkImageHead.item_count;i++ )
+	m_dwBackupOffset = 0xFFFFFFFF;
+	int iParamPos =- 1;
+	long long uiTotalSize = 0;
+	long long ulItemSize  = 0;
+	bool bFoundParam = false, bFoundSystem = false, bFoundUserData = false;
+	for (i = 0; i < rkImageHead.item_count; i++)
 	{
-		if ( rkImageHead.item[i].flash_offset!=0xFFFFFFFF )
+		if (rkImageHead.item[i].flash_offset != 0xFFFFFFFF)
 		{
-			for (iter=vecUpgradePartition.begin();iter!=vecUpgradePartition.end();iter++)
+			for (iter=vecUpgradePartition.begin(); iter!=vecUpgradePartition.end(); iter++)
 			{
-				if (rkImageHead.item[*iter].flash_offset>rkImageHead.item[i].flash_offset)
+				if (rkImageHead.item[*iter].flash_offset > rkImageHead.item[i].flash_offset)
 				{
 					iter = vecUpgradePartition.insert(iter,i);
 					break;
 				}
 			}
-			if (iter==vecUpgradePartition.end())
+
+			if (iter == vecUpgradePartition.end())
 			{
 				vecUpgradePartition.push_back(i);
 			}
-			if ( strcmp(rkImageHead.item[i].name,PARTNAME_PARAMETER)==0)
+			if ( strcmp(rkImageHead.item[i].name,PARTNAME_PARAMETER) == 0)
 			{
 				bFoundParam = true;
 				iParamPos = i;
 			}
 			else
 			{
-				if (strcmp(rkImageHead.item[i].name,PARTNAME_SYSTEM)==0)
+				if (strcmp(rkImageHead.item[i].name, PARTNAME_SYSTEM) == 0 ||
+					!strcmp(rkImageHead.item[i].name, PARTNAME_ROOTFS))
 				{
 					bFoundSystem = true;
 				}
-				if (strcmp(rkImageHead.item[i].name,PARTNAME_MISC)==0)
+				if (strcmp(rkImageHead.item[i].name, PARTNAME_MISC) == 0)
 				{
 					dwFlagSector = rkImageHead.item[i].flash_offset + rkImageHead.item[i].part_size - 4;
 				}
@@ -1656,11 +1753,13 @@ int CRKAndroidDevice::UpgradePartition()
 				{
 					bFoundUserData = true;
 				}
-				if (strcmp(rkImageHead.item[i].name,PARTNAME_BACKUP)==0)
+
+				if (strcmp(rkImageHead.item[i].name, PARTNAME_BACKUP)==0)
 				{
 					m_dwBackupOffset = rkImageHead.item[i].flash_offset;
 				}
-				if (rkImageHead.item[i].file[55]=='H')
+
+				if (rkImageHead.item[i].file[55] == 'H')
 				{
 					ulItemSize = *((DWORD *)(&rkImageHead.item[i].file[56]));
 					ulItemSize <<= 32;
@@ -1699,7 +1798,7 @@ int CRKAndroidDevice::UpgradePartition()
 		}
 		return -13;
 	}
-	uiTotalSize += (8*m_uiParamFileSize);//加上参数文件需要的大小
+	uiTotalSize += (8 * m_uiParamFileSize); //加上参数文件需要的大小
 	m_uiLBATimes = 1;
 	m_pImage->GetMd5Data(fwMd5,fwSignMd5);
 	if (dwFlagSector!=0)
@@ -1910,8 +2009,6 @@ int CRKAndroidDevice::EraseAllBlocks()
 
 	return 0;
 }
-
-
 
 bool CRKAndroidDevice::BufferWriteBack()
 {
@@ -2142,10 +2239,37 @@ bool CRKAndroidDevice::RKA_File_Download(STRUCT_RKIMAGE_ITEM &entry,long long &c
 
 	UINT uiBegin,uiLen,uiWriteByte;
 	long long uiEntryOffset;
+
 	uiBegin = entry.flash_offset;
 	uiLen = 0;uiWriteByte = 0;uiEntryOffset=0;
-	while ( uifileBufferSize>0 )
+#ifdef USE_SIMULATE_POWER_OFF
+	UINT cnt = 5;
+	long long itemTotalsize;
+	bool isInOrder = false;
+	itemTotalsize = uifileBufferSize;
+	isInOrder = isInOrderList(entry.name);
+#endif
+
+	while (uifileBufferSize > 0)
 	{
+#ifdef USE_SIMULATE_POWER_OFF
+		if (isInOrder && uifileBufferSize < itemTotalsize / 2)
+		{
+			while (cnt > 0)
+			{
+				if (m_pLog)
+				{
+					printf("******************************************************\n");
+					printf("current is %s upgrading\n", entry.name);
+					printf("This is simulate abnormal power off test\n");
+					printf("left --- %ds ---\n" , cnt);
+					printf("******************************************************\n");
+				}
+				sleep(1);
+				cnt--;
+			}
+		}
+#endif
 		memset(pBuffer,0,uiBufferSize);
 		if ( uifileBufferSize<uiBufferSize )
 		{
@@ -2246,15 +2370,15 @@ bool CRKAndroidDevice::RKA_File_Download(STRUCT_RKIMAGE_ITEM &entry,long long &c
 		uiEntryOffset += uiWriteByte;
 		uiBegin += uiLen;
 		currentByte += uiWriteByte;
-
 	}
+
 	delete []pBuffer;
 	pBuffer = NULL;
 
-	if (m_pLog)
-	{
-		m_pLog->Record(_T("INFO:[ %s ] upgrade Done!"),entry.name);
-	}
+	// if (m_pLog)
+	// {
+	// 	m_pLog->Record(_T("INFO:[ %s ] upgrade Done!"), entry.name);
+	// }
 	return true;
 }
 
@@ -3118,18 +3242,19 @@ bool CRKAndroidDevice::GetPublicKey(unsigned char *pKey,unsigned int &nKeySize)
 
 	return false;
 }
+
 bool CRKAndroidDevice::GetParameterGptFlag(STRUCT_RKIMAGE_ITEM &paramItem)
 {
-	PBYTE pParamBuf=NULL;
+	PBYTE pParamBuf = NULL;
 	bool bGpt = false;
-	pParamBuf = new BYTE[paramItem.size-12+1];
+	pParamBuf = new BYTE[paramItem.size - 12 + 1];
 	if (!pParamBuf)
 	{
 		return false;
 	}
-	memset(pParamBuf,0,paramItem.size-12+1);
+	memset(pParamBuf, 0, paramItem.size - 12 + 1);
 	bool bRet;
-	bRet = m_pImage->GetData(m_pImage->FWOffset+paramItem.offset+8,paramItem.size-12,pParamBuf);
+	bRet = m_pImage->GetData(m_pImage->FWOffset + paramItem.offset + 8, paramItem.size - 12, pParamBuf);
 	if (!bRet)
 	{
 		delete []pParamBuf;
@@ -3178,6 +3303,7 @@ bool CRKAndroidDevice::GetParameterGptFlag(STRUCT_RKIMAGE_ITEM &paramItem)
 	}
 	return bGpt;
 }
+
 #define DO_CRC(x) crc = tab[ (crc ^ (x)) & 255 ] ^ (crc>>8)
 unsigned int crc32_le(unsigned int crc, unsigned char *p, unsigned int len)
 {

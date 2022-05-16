@@ -115,9 +115,12 @@ const BYTE Wipe_All[]={0x72,0x65,0x63,0x6F,0x76,0x65,
 #define PARTNAME_KERNEL			"kernel"
 #define PARTNAME_BOOT			"boot"
 #define PARTNAME_RECOVERY		"recovery"
+#define PARTNAME_UBOOT			"uboot"
 #define PARTNAME_SYSTEM			"system"
+#define PARTNAME_ROOTFS			"rootfs"
 #define PARTNAME_MISC			"misc"
 #define PARTNAME_BACKUP			"backup"
+#define PARTNAME_OEM			"oem"
 #define PARTNAME_USERDATA		"userdata"
 #define PARTNAME_USER			"user"
 
@@ -128,6 +131,8 @@ const BYTE Wipe_All[]={0x72,0x65,0x63,0x6F,0x76,0x65,
 #define MAX_MACHINE_MODEL		34
 #define RELATIVE_PATH			60
 #define PART_NAME				32
+
+#define ARRAY_LENGTH(a) (sizeof (a) / sizeof (a)[0])
 typedef struct
 {
 	char name[PART_NAME];// ·ÖÇøÃû³Æ
@@ -168,6 +173,14 @@ typedef struct
 	UINT codeLoadAddr;
 	BYTE headSignValue[256];
 }RK_SECURE_HEADER,*PRK_SECURE_HEADER;
+
+typedef struct _RK_UPDATE_ORDER
+{
+	UINT uiOrder;
+	char partName[32];
+	STRUCT_RKIMAGE_ITEM stItem;
+	long long ulItemSize;
+}RK_UPDATE_ORDER;
 
 #pragma pack()
 
