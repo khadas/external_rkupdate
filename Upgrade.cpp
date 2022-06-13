@@ -11,7 +11,7 @@ UpgradeCallbackFunc g_callback = NULL;
 UpgradeProgressCallbackFunc g_progress_callback = NULL;
 
 /* RK3308 loader update*/
-int IsRK3308_Plateform()
+int IsRK3308_Platform()
 {
     int fd = -1;
     int len;
@@ -935,7 +935,7 @@ bool do_rk_firmware_upgrade(char *szFw, void *pCallback, void *pProgressCallback
 
     bUpdateLoader = pDevice->IsExistBootloaderInFw();
 
-    if (IsRK3308_Plateform() && Compatible_rk3308bs_loader())
+    if (IsRK3308_Platform() && Compatible_rk3308bs_loader())
     {
         bool bFound_3308bs_loader = false;
         const char *rk3308bs_loader = "rk3308bs_loader";
@@ -943,7 +943,7 @@ bool do_rk_firmware_upgrade(char *szFw, void *pCallback, void *pProgressCallback
         DWORD rk3308bs_loaderSize   = 0;
 
         bUpdateLoader = false;
-        if (pDevice->IsExistPartitonInFw(rk3308bs_loader, rk3308bs_loaderOffset, rk3308bs_loaderSize))
+        if (pDevice->IsExistPartitionInFw(rk3308bs_loader, rk3308bs_loaderOffset, rk3308bs_loaderSize))
         {
             printf("Found RK3308bs loader in fw and offset :%d size :%d.\n",
                    rk3308bs_loaderOffset, rk3308bs_loaderSize);

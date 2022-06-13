@@ -1091,7 +1091,7 @@ int CRKAndroidDevice::DownloadIDBlock()
     }
 }
 
-bool CRKAndroidDevice::IsExistPartitonInFw(const char *partName, UINT &offset, UINT &size)
+bool CRKAndroidDevice::IsExistPartitionInFw(const char *partName, UINT &offset, UINT &size)
 {
     bool bRet;
     long long dwFwOffset;
@@ -1112,9 +1112,9 @@ bool CRKAndroidDevice::IsExistPartitonInFw(const char *partName, UINT &offset, U
         return false;
     }
 
-    /* get partiton size and offset in fw data to buffer */
-    long long partitonSize;
-    long long partitonOffset;
+    /* get partition size and offset in fw data to buffer */
+    long long partitionSize;
+    long long partitionOffset;
 
     for (int i = 0; i < rkImageHead.item_count; i++)
     {
@@ -1125,18 +1125,18 @@ bool CRKAndroidDevice::IsExistPartitonInFw(const char *partName, UINT &offset, U
 
         if (rkImageHead.item[i].file[55] == 'H')
         {
-            partitonSize = *((DWORD *)(&rkImageHead.item[i].file[56]));
-            partitonSize <<= 32;
-            partitonSize += rkImageHead.item[i].size;
+            partitionSize = *((DWORD *)(&rkImageHead.item[i].file[56]));
+            partitionSize <<= 32;
+            partitionSize += rkImageHead.item[i].size;
         }
         else
         {
-            partitonSize = rkImageHead.item[i].size;
+            partitionSize = rkImageHead.item[i].size;
         }
 
-        partitonOffset = rkImageHead.item[i].offset;
-        offset         = (UINT)partitonOffset;
-        size           = (UINT)partitonSize;
+        partitionOffset = rkImageHead.item[i].offset;
+        offset         = (UINT)partitionOffset;
+        size           = (UINT)partitionSize;
         bFound = true;
 
         break;

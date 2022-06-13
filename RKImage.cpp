@@ -1,7 +1,7 @@
 #include "RKImage.h"
 #include "MD5Checksum.h"
 
-extern int IsRK3308_Plateform();
+extern int IsRK3308_Platform();
 extern int Compatible_rk3308bs_loader();
 
 DWORD CRKImage::GetVersion()
