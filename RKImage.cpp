@@ -54,6 +54,11 @@ FILE *CRKImage::GetFWFileHandle()
     return m_pFile;
 }
 
+char *CRKImage::GetFwPath()
+{
+    return m_imgPath;
+}
+
 bool CRKImage::Md5Check(long long nCheckSize)
 {
     printf("In Md5Check\n");
@@ -124,6 +129,7 @@ bool CRKImage::SaveBootFile(tstring filename)
     fclose(file);
     return true;
 }
+
 bool CRKImage::SaveFWFile(tstring filename)
 {
     FILE *file = NULL;
@@ -207,6 +213,9 @@ CRKImage::CRKImage(tstring filename, bool &bCheck)
     FWOffset.getter(&CRKImage::GetFWOffset);
     FWSize.setContainer(this);
     FWSize.getter(&CRKImage::GetFWSize);
+    FwPath.setContainer(this);
+    FwPath.getter(&CRKImage::GetFwPath);
+
     bool bDoMdb5Check = bCheck;
     struct stat64 statBuf;
     m_bootObject = NULL;
@@ -221,7 +230,7 @@ CRKImage::CRKImage(tstring filename, bool &bCheck)
     if (stat64(szName, &statBuf) < 0)
     {
         bCheck = false;
-        printf("CRKImage : stat <%s> happen error.error_resion = %s\n", szName, strerror(errno));
+        printf("CRKImage : stat <%s> happen error.error_reason = %s\n", szName, strerror(errno));
         return;
     }
     if (S_ISDIR(statBuf.st_mode))
@@ -231,6 +240,7 @@ CRKImage::CRKImage(tstring filename, bool &bCheck)
         return;
     }
     m_fileSize = statBuf.st_size;
+    memcpy(m_imgPath, szName, sizeof(szName));
 
     bool bOnlyBootFile = false;
     transform(filename.begin(), filename.end(), filename.begin(), (int(*)(int))tolower);

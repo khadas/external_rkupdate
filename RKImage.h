@@ -44,6 +44,9 @@ public:
     property<CRKImage, FILE *, READ_ONLY> FWFileHandle;
     long long GetFWSize();
     property<CRKImage, long long, READ_ONLY> FWSize;
+    char *GetFwPath();
+    property<CRKImage, char *, READ_ONLY> FwPath;
+
     CRKBoot *m_bootObject;
     bool Md5Check(long long nCheckSize);
     bool SaveBootFile(tstring filename);
@@ -71,6 +74,7 @@ private:
     bool  m_bSignFlag;
     int   m_signMd5Size;
     FILE *m_pFile;
+    char m_imgPath[256];
     long long m_fileSize;
 };
 #endif

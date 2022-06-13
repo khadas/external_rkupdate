@@ -1341,6 +1341,7 @@ int CRKAndroidDevice::DownloadImage()
     char szPrompt[100];
     int iParamPos = -1;
     bool bFoundParam = false;
+    bool bFwFromUserdata = false;
     long long uiTotalSize = 0;
     long long ulItemSize;
 
@@ -1367,6 +1368,12 @@ int CRKAndroidDevice::DownloadImage()
         return -2;
     }
 
+    if (!memcmp(m_pImage->GetFwPath(), "/userdata", 9) ||
+        !memcmp(m_pImage->GetFwPath(), "/data", 5))
+    {
+        bFwFromUserdata = true;
+    }
+
     m_dwBackupOffset = 0xFFFFFFFF;
     for (i = 0; i < rkImageHead.item_count; i++)
     {
@@ -1385,17 +1392,20 @@ int CRKAndroidDevice::DownloadImage()
                 }
 
                 if (strcmp(rkImageHead.item[i].name, PARTNAME_RECOVERY) == 0 ||
-                    strcmp(rkImageHead.item[i].name, PARTNAME_MISC) == 0 ||
-                    look_for_userdata(rkImageHead.item[i].name) == 0)
+                    strcmp(rkImageHead.item[i].name, PARTNAME_MISC) == 0)
                 {
+                    //if find "recovery" or "misc" partition, we ignore,
+                    //recovery.img update processing in normal system.
+                    //misc.img not process here.
                     if (!sdBootUpdate)
-                        //if find "recovery" or "misc" partition, we ignore,
-                        //recovery.img update processimg in main system.
-                        //misc.img not process here.
                     {
                         continue;
                     }
                 }
+
+                // if fw is in userdata and fw have userdata partiton, we ignore update userdata partition.
+                if (look_for_userdata(rkImageHead.item[i].name) == 0 && bFwFromUserdata)
+                    continue;
 
                 if (rkImageHead.item[i].file[55] == 'H')
                 {
@@ -1528,8 +1538,7 @@ int CRKAndroidDevice::DownloadImage()
         else
         {
             if (strcmp(rkImageHead.item[i].name, PARTNAME_RECOVERY) == 0 ||
-                strcmp(rkImageHead.item[i].name, PARTNAME_MISC) == 0 ||
-                look_for_userdata(rkImageHead.item[i].name) == 0)
+                strcmp(rkImageHead.item[i].name, PARTNAME_MISC) == 0)
             {
                 if (!sdBootUpdate)
                 {
@@ -1539,6 +1548,10 @@ int CRKAndroidDevice::DownloadImage()
                     continue;
                 }
             }
+
+            // if fw is in userdata and fw have userdata partiton, we ignore check userdata partition.
+            if (look_for_userdata(rkImageHead.item[i].name) == 0 && bFwFromUserdata)
+                continue;
 
             #ifdef USE_SIGNATURE_FW
             if (isInOrderList(rkImageHead.item[i].name))

@@ -945,7 +945,8 @@ bool do_rk_firmware_upgrade(char *szFw, void *pCallback, void *pProgressCallback
         bUpdateLoader = false;
         if (pDevice->IsExistPartitonInFw(rk3308bs_loader, rk3308bs_loaderOffset, rk3308bs_loaderSize))
         {
-            printf("Found RK3308bs loader in fw and offset :%d size :%d.\n", rk3308bs_loaderOffset, rk3308bs_loaderSize);
+            printf("Found RK3308bs loader in fw and offset :%d size :%d.\n",
+                   rk3308bs_loaderOffset, rk3308bs_loaderSize);
 
             if (pImage->m_bootObject)
             {
@@ -979,7 +980,7 @@ bool do_rk_firmware_upgrade(char *szFw, void *pCallback, void *pProgressCallback
         printf("############### update bootloader start ############\n");
 
         pLog->Record("IDBlock Preparing...");
-        printf("\t\t ############### IDBlock Preparing...\n");
+        printf("\t\t############### IDBlock Preparing...\n");
         iRet = pDevice->PrepareIDB();
         if (iRet != ERR_SUCCESS)
         {
@@ -987,7 +988,7 @@ bool do_rk_firmware_upgrade(char *szFw, void *pCallback, void *pProgressCallback
             goto EXIT_UPGRADE;
         }
         pLog->Record("IDBlock Writing...");
-        printf("\t\t ############### IDBlock Writing...\n");
+        printf("\t\t############### IDBlock Writing...\n");
         iRet = pDevice->DownloadIDBlock();
         if (iRet != ERR_SUCCESS)
         {
