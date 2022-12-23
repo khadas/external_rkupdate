@@ -1201,8 +1201,6 @@ bool CRKAndroidDevice::IsExistBootloaderInFw()
 
         if (fileBufferSize > 0)
         {
-            DWORD dwFwOffset;
-            dwFwOffset = m_pImage->FWOffset;
             if (rkImageHead.item[i].file[50] == 'H')
             {
                 entryStartOffset = *((DWORD *)(&rkImageHead.item[i].file[51]));
@@ -1237,7 +1235,7 @@ bool CRKAndroidDevice::IsExistBootloaderInFw()
                     uiWroteByte = uiBufferSize;
                 }
 
-                bRet = m_pImage->GetData(dwFwOffset + rkImageHead.item[i].offset + uiEntryOffset,
+                bRet = m_pImage->GetData(entryStartOffset + uiEntryOffset,
                                          uiWroteByte, pBuffer);
                 if (!bRet)
                 {
@@ -2374,19 +2372,19 @@ bool CRKAndroidDevice::RKA_File_Download(STRUCT_RKIMAGE_ITEM &entry, long long &
     }
 
     UINT uiBegin, uiLen, uiWriteByte;
-    long long uiEntryOffset;
+    u64 uiEntryOffset;
 
     uiBegin = entry.flash_offset;
     uiLen = 0;
     uiWriteByte = 0;
     uiEntryOffset = 0;
-    #ifdef USE_SIMULATE_POWER_OFF
+#ifdef USE_SIMULATE_POWER_OFF
     UINT cnt = 5;
     long long itemTotalsize;
     bool isInOrder = false;
     itemTotalsize = uifileBufferSize;
     isInOrder = isInOrderList(entry.name);
-    #endif
+#endif
 
     while (uifileBufferSize > 0)
     {
@@ -2419,7 +2417,7 @@ bool CRKAndroidDevice::RKA_File_Download(STRUCT_RKIMAGE_ITEM &entry, long long &
             uiWriteByte = uiBufferSize;
             uiLen = uiLBASector;
         }
-        bRet = m_pImage->GetData(dwFWOffset + entry.offset + uiEntryOffset, uiWriteByte, pBuffer);
+        bRet = m_pImage->GetData(ulEntryStartOffset + uiEntryOffset, uiWriteByte, pBuffer);
         if (!bRet)
         {
             if (m_pLog)
@@ -2634,7 +2632,7 @@ bool CRKAndroidDevice::RKA_File_Check(STRUCT_RKIMAGE_ITEM &entry, long long &cur
             delete []pBufferFromFlash;
             return false;
         }
-        bRet = m_pImage->GetData(dwFWOffset + entry.offset + uiEntryOffset, uiWriteByte, pBufferFromFile);
+        bRet = m_pImage->GetData(ulEntryStartOffset + uiEntryOffset, uiWriteByte, pBufferFromFile);
         if (!bRet)
         {
             if (m_pLog)
@@ -3062,7 +3060,7 @@ bool CRKAndroidDevice::MakeParamFileBuffer(STRUCT_RKIMAGE_ITEM &entry)
 {
     bool bRet;
     UINT uiFileBufferSize;
-    DWORD dwFWOffset;
+    long long dwFWOffset;
 
     dwFWOffset = m_pImage->FWOffset;
     uiFileBufferSize = 2 * entry.size;
