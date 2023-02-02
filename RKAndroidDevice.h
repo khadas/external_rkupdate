@@ -106,8 +106,10 @@ const BYTE Wipe_All[] = {0x72, 0x65, 0x63, 0x6F, 0x76, 0x65,
                          0x72, 0x79, 0x0A, 0x2D, 0x2D, 0x77,
                          0x69, 0x70, 0x65, 0x5F, 0x61, 0x6C, 0x6C, 0x00
                         };
-#define LBA_TRANSFER_SIZE       16*1024
-#define LBA_LOOP_SIZE   1024*1024
+
+#define LBA_TRANSFER_SIZE_16K       (16*1024)
+#define LBA_TRANSFER_SIZE_1M        (1024*1024)
+#define LBA_LOOP_SIZE               (1024*1024)
 
 #define MAX_PACKAGE_FILES           16
 #define RKIMAGE_TAG             0x46414B52

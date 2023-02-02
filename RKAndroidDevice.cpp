@@ -1179,7 +1179,7 @@ bool CRKAndroidDevice::IsExistBootloaderInFw()
     /* get package-file data to buffer */
     long long fileBufferSize;
     long long entryStartOffset;
-    unsigned int uiBufferSize = LBA_TRANSFER_SIZE;
+    unsigned int uiBufferSize = LBA_TRANSFER_SIZE_16K;
 
     for (int i = 0; i < rkImageHead.item_count; i++)
     {
@@ -2306,10 +2306,19 @@ bool CRKAndroidDevice::FindBackupBuffer()
 
 bool CRKAndroidDevice::RKA_File_Download(STRUCT_RKIMAGE_ITEM &entry, long long &currentByte, long long totalByte)
 {
-    UINT uiLBATransferSize = (LBA_TRANSFER_SIZE) * m_uiLBATimes;
-    UINT uiLBASector = uiLBATransferSize / SECTOR_SIZE;
     int iRet;
     bool bRet;
+    UINT uiLBATransferSize;
+
+    /* To reduce the write frequency of EMMC flash memory, we use different block sizes
+     * according to the flash memory type configuration, EMMC flash memory is 1M, nand or other devices use 16K by default.
+     */
+    if (m_bEmmc)
+        uiLBATransferSize = (LBA_TRANSFER_SIZE_1M) * m_uiLBATimes;
+    else
+        uiLBATransferSize = (LBA_TRANSFER_SIZE_16K) * m_uiLBATimes;
+    UINT uiLBASector = uiLBATransferSize / SECTOR_SIZE;
+
     UINT uiBufferSize = uiLBATransferSize;
     long long uifileBufferSize;
     long long ulEntryStartOffset;
@@ -2521,11 +2530,15 @@ bool CRKAndroidDevice::RKA_File_Download(STRUCT_RKIMAGE_ITEM &entry, long long &
 
 bool CRKAndroidDevice::RKA_File_Check(STRUCT_RKIMAGE_ITEM &entry, long long &currentByte, long long totalByte)
 {
-    UINT uiLBATransferSize = (LBA_TRANSFER_SIZE) * m_uiLBATimes;
-    UINT uiLBASector = uiLBATransferSize / SECTOR_SIZE;
     int iRet;
     bool bRet;
-    UINT uiBufferSize = uiLBATransferSize;
+    UINT uiLBATransferSize;
+    if (m_bEmmc)
+        uiLBATransferSize = (LBA_TRANSFER_SIZE_1M) * m_uiLBATimes;
+    else
+        uiLBATransferSize = (LBA_TRANSFER_SIZE_16K) * m_uiLBATimes;
+    UINT uiLBASector       = uiLBATransferSize / SECTOR_SIZE;
+    UINT uiBufferSize      = uiLBATransferSize;
     long long uifileBufferSize;
     long long ulEntryStartOffset;
     DWORD dwFWOffset;
@@ -2617,7 +2630,6 @@ bool CRKAndroidDevice::RKA_File_Check(STRUCT_RKIMAGE_ITEM &entry, long long &cur
             uiLen = uiLBASector;
         }
 
-
         memset(pBufferFromFile, 0, uiBufferSize);
         memset(pBufferFromFlash, 0, uiBufferSize);
 
@@ -2698,7 +2710,6 @@ bool CRKAndroidDevice::RKA_File_Check(STRUCT_RKIMAGE_ITEM &entry, long long &cur
         uiEntryOffset += uiWriteByte;
         uifileBufferSize -= uiWriteByte;
         uiBegin += uiLen;
-
     }
 
     delete []pBufferFromFile;
@@ -2709,7 +2720,7 @@ bool CRKAndroidDevice::RKA_File_Check(STRUCT_RKIMAGE_ITEM &entry, long long &cur
 bool CRKAndroidDevice::RKA_Param_Download(STRUCT_RKIMAGE_ITEM &entry, long long &currentByte, long long totalByte)
 {
     //写5份参数文件
-    UINT uiLBATransferSize = (LBA_TRANSFER_SIZE) * m_uiLBATimes;
+    UINT uiLBATransferSize = (LBA_TRANSFER_SIZE_16K) * m_uiLBATimes;
     UINT uiLBASector = uiLBATransferSize / SECTOR_SIZE;
     int  iRet, i;
     BYTE byRWMethod = RWMETHOD_IMAGE;
@@ -2773,7 +2784,7 @@ bool CRKAndroidDevice::RKA_Param_Download(STRUCT_RKIMAGE_ITEM &entry, long long 
 }
 bool CRKAndroidDevice::RKA_Param_Check(STRUCT_RKIMAGE_ITEM &entry, long long &currentByte, long long totalByte)
 {
-    UINT uiLBATransferSize = (LBA_TRANSFER_SIZE) * m_uiLBATimes;
+    UINT uiLBATransferSize = (LBA_TRANSFER_SIZE_16K) * m_uiLBATimes;
     UINT uiLBASector = uiLBATransferSize / SECTOR_SIZE;
     int iRet, i;
     UINT uiReadBufferSize = uiLBATransferSize;
@@ -2889,7 +2900,7 @@ bool CRKAndroidDevice::RKA_Param_Check(STRUCT_RKIMAGE_ITEM &entry, long long &cu
 
 bool CRKAndroidDevice::RKA_Gpt_Download(STRUCT_RKIMAGE_ITEM &entry, long long &currentByte, long long totalByte)
 {
-    UINT uiLBATransferSize = (LBA_TRANSFER_SIZE) * m_uiLBATimes;
+    UINT uiLBATransferSize = (LBA_TRANSFER_SIZE_16K) * m_uiLBATimes;
     UINT uiLBALoopLimit = (LBA_LOOP_SIZE) / uiLBATransferSize;
     UINT uiLBASector = uiLBATransferSize / SECTOR_SIZE;
     int  iRet;
@@ -2958,7 +2969,7 @@ bool CRKAndroidDevice::RKA_Gpt_Download(STRUCT_RKIMAGE_ITEM &entry, long long &c
 }
 bool CRKAndroidDevice::RKA_Gpt_Check(STRUCT_RKIMAGE_ITEM &entry, long long &currentByte, long long totalByte)
 {
-    UINT uiLBATransferSize = (LBA_TRANSFER_SIZE) * m_uiLBATimes;
+    UINT uiLBATransferSize = (LBA_TRANSFER_SIZE_16K) * m_uiLBATimes;
     UINT uiLBALoopLimit = (LBA_LOOP_SIZE) / uiLBATransferSize;
     UINT uiLBASector = uiLBATransferSize / SECTOR_SIZE;
     int iRet;
